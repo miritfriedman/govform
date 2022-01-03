@@ -8,9 +8,31 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 
-Read in the form of government data from Chrish Tausanovitch and Christopher Warshaw. Originally downloaded from here: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/AXVEXM
+Load in Libraries
 ```{r}
-
+library(dplyr)
 ```
 
+
+Read in the form of government data from Chrish Tausanovitch and Christopher Warshaw. Originally downloaded from here: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/AXVEXM
+```{r}
+fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/cities_finaldata.csv")
+```
+
+Read in the master FIPS for comparison
+```{r}
+masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v4.csv")
+```
+change the name of the FIPS column in the T+S data to match
+```{r}
+colnames(fog)[6]<-"FIPS"
+```
+
+
+Merge the datasets based on matching FIPS codes
+
+```{r}
+n1<-merge(fog,masterFIPS, by.x="FIPS",by.y="FIPS")
+comp<-anti_join(masterFIPS,fog, by="FIPS")
+```
 
