@@ -29,10 +29,55 @@ colnames(fog)[6]<-"FIPS"
 ```
 
 
+read ICMA data in
+```{r}
+
+ICMA<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/ICMA_2018.csv", colClasses = c("FIPS_StateCounty" = "character"))
+
+ICMA <-
+  tidyr::separate(
+    data =ICMA,
+    col = FIPS_StateCounty,
+    sep = c(2),
+    into = c("FIPS_State","FIPS_County"),
+    remove = TRUE
+  ) 
+
+ICMA$FIPS_State<-as.numeric(ICMA$FIPS_State)
+
+```
+
+
+```{r}
+ICMA$FIPSm<- paste(ICMA$FIPS_State,ICMA$FIPS_Place, sep="")
+ICMA$FIPSt<- paste(ICMA$FIPS_State,ICMA$FIPS_County,ICMA$FIPS_Place, sep="")
+```
+
 Merge the datasets based on matching FIPS codes
 
 ```{r}
-n1<-merge(fog,masterFIPS, by.x="FIPS",by.y="FIPS")
-comp<-anti_join(masterFIPS,fog, by="FIPS")
+n1<-merge(ICMA,masterFIPS, by.x="FIPSm",by.y="FIPS")
+n2<-merge(ICMA,masterFIPS,by.x="FIPSt",by.y="FIPS")
+
+FOG<-rbind(n1,n2)
+
+comp<-anti_join(masterFIPS,FOG, by="FIPS")
+comp2<-anti_join(fog,masterFIPS, by="FIPS")
 ```
+
+Read in 1992 census data
+
+```{r}
+census<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/4_Popularly Elected Officials_1992_1987.csv",colClasses = c("ID"="character","State.Code"="character"))
+```
+
+
+
+
+
+
+
+
+
+
 
