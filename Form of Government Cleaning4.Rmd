@@ -11,17 +11,20 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 Load in Libraries
 ```{r}
 library(dplyr)
+library(stringr)
+library(tidyverse)
+library(arsenal)
 ```
 
 
 Read in the form of government data from Chrish Tausanovitch and Christopher Warshaw. Originally downloaded from here: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/AXVEXM
 ```{r}
-fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/cities_finaldata.csv")
+fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/cities_finaldata.csv",colClasses = c("place_fips" = "character", "fog2" = "character"))
 ```
 
 Read in the master FIPS for comparison
 ```{r}
-masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v4.csv")
+masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v4.csv",colClasses = c("FIPS" = "character"))
 ```
 change the name of the FIPS column in the T+S data to match
 ```{r}
@@ -44,6 +47,8 @@ ICMA <-
   ) 
 
 ICMA$FIPS_State<-as.numeric(ICMA$FIPS_State)
+ICMA$FIPS_Place<-as.numeric(ICMA$FIPS_Place)
+ICMA$FIPS_Place<-str_pad(ICMA$FIPS_Place, 5, side=c("left"),pad = "0")
 
 ```
 
@@ -51,18 +56,36 @@ ICMA$FIPS_State<-as.numeric(ICMA$FIPS_State)
 ```{r}
 ICMA$FIPSm<- paste(ICMA$FIPS_State,ICMA$FIPS_Place, sep="")
 ICMA$FIPSt<- paste(ICMA$FIPS_State,ICMA$FIPS_County,ICMA$FIPS_Place, sep="")
+ICMA<-ICMA[,c(206,207,1:205)]
 ```
 
 Merge the datasets based on matching FIPS codes
 
 ```{r}
-n1<-merge(ICMA,masterFIPS, by.x="FIPSm",by.y="FIPS")
-n2<-merge(ICMA,masterFIPS,by.x="FIPSt",by.y="FIPS")
+n1<-merge(ICMA,masterFIPS, by.x="FIPSm",by.y="FIPS",all=TRUE)
+n1$FIPS <- n1$FIPSm 
+n1<-n1[,c(218,1:217)]
+n2<-merge(ICMA,masterFIPS,by.x="FIPSt",by.y="FIPS",all=TRUE)
+n2$FIPS <- n2$FIPSt 
+n2<-n2[,c(218,1:217)]
 
 FOG<-rbind(n1,n2)
 
-comp<-anti_join(masterFIPS,FOG, by="FIPS")
-comp2<-anti_join(fog,masterFIPS, by="FIPS")
+FOG<-FOG[!is.na(FOG$PWSID),]
+
+FOG$FIPSfin <- ifelse(FOG$FIPS == FOG$FIPSm, FOG$FIPS,
+                ifelse(FOG$FIPS == FOG$FIPSt, FOG$FIPS, 'NA'))
+FOG<-FOG[,c(219,1:218)]
+
+FOG<-FOG[!is.na(FOG$LocalGovernment),]
+
+
+comp<-anti_join(FOG,FOGm,by=c("FIPS"))
+comp<-fog[is.na(match(fog$FIPS,FOG$FIPS)),]
+
+comp<-comparedf(FOG, FOGm, by = "FIPS")
+
+
 ```
 
 Read in 1992 census data
@@ -72,6 +95,78 @@ census<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/4_Popularly 
 ```
 
 
+
+read 2011 ICMA data in
+```{r}
+
+ICMA2011<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/ICMA_2011.csv", #colClasses = c("FIPS_StateCounty" = "character"))
+)
+
+ICMA2011<-ICMA2011[,c(220,235,237:239)]
+
+ICMA2011$UCNTY.<-as.numeric(ICMA2011$UCNTY.)
+ICMA2011$UCNTY.<-str_pad(ICMA2011$UCNTY., 3, side=c("left"),pad = "0")
+ICMA2011$FIPS_PLACE_ID<-as.numeric(ICMA2011$FIPS_PLACE_ID)
+ICMA2011$FIPS_PLACE_ID<-str_pad(ICMA2011$FIPS_PLACE_ID, 5, side=c("left"),pad = "0")
+
+```
+
+
+```{r}
+ICMA2011$FIPSm<- paste(ICMA2011$USTATE.,ICMA2011$FIPS_PLACE_ID, sep="")
+ICMA2011$FIPSt<- paste(ICMA2011$USTATE.,ICMA2011$UCNTY,ICMA2011$FIPS_PLACE_ID, sep="")
+
+n1_2011<-merge(ICMA2011,masterFIPS, by.x="FIPSm",by.y="FIPS",all=TRUE)
+n1_2011$FIPS <- n1_2011$FIPSm 
+n2_2011<-merge(ICMA2011,masterFIPS,by.x="FIPSt",by.y="FIPS",all=TRUE)
+n2_2011$FIPS <- n2_2011$FIPSt 
+
+
+FOG_2011<-rbind(n1_2011,n2_2011)
+
+FOG_2011<-FOG_2011[!is.na(FOG_2011$PWSID),]
+
+FOG_2011$FIPSfin <- ifelse(FOG_2011$FIPS == FOG_2011$FIPSm, FOG_2011$FIPS,
+                ifelse(FOG_2011$FIPS == FOG_2011$FIPSt, FOG_2011$FIPS, 'NA'))
+
+FOG_2011<-FOG_2011[!is.na(FOG_2011$UJURIS),]
+ICMA_2011<-FOG_2011[,c("FIPS","UJURIS","ICMA_UFOG")]
+```
+
+Using the masterFIPS list as the base, add first where there's complete data from the T+W data, then ICMA 2018, then ICMA 2011, then Census 1992
+
+```{r}
+govfrm<-masterFIPS[1:5]
+fog<-fog[,c("city","FIPS","fog2")]
+ICMA2018<-FOG[,c("FIPSfin","LocalGovernment","UFOG")]
+ICMA2018$FIPSfin
+names(ICMA2018)[1] <- 'FIPS'
+
+
+#Merge master list with T+W data
+govfrm<-left_join(govfrm,fog, by="FIPS", keep=TRUE)
+#rename column
+govfrm$FIPS<-govfrm$FIPS.x
+#delete extra FIPS column
+govfrm<-subset(govfrm, select=-c(FIPS.y,FIPS.x))
+#reorder columns so FIPS is first
+govfrm<-govfrm[,c(7,1:6)]
+
+#Merge master list with ICMA 2018 data
+govfrm<-left_join(govfrm,ICMA2018, by="FIPS", keep=TRUE)
+
+govfrm$FIPS<-govfrm$FIPS.x
+
+govfrm<-left_join(govfrm,ICMA_2011, by="FIPS", keep=TRUE)
+govfrm$FIPS<-govfrm$FIPS.x
+govfrm<-govfrm[,c(1, 6, 7, 10, 14)]
+govfrm$FOG_TW<-govfrm$fog2
+govfrm$FOG_ICMA_2018<-govfrm$UFOG
+govfrm$FOG_ICMA_2011<-govfrm$ICMA_UFOG
+
+govfrm<-govfrm[,c("FIPS","city","FOG_TW", "FOG_ICMA_2018","FOG_ICMA_2011")]
+#Merge master list with ICMA 2011 data()
+```
 
 
 
