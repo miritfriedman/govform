@@ -14,21 +14,21 @@ library(dplyr)
 library(stringr)
 library(tidyverse)
 library(arsenal)
+library(tidyr)
 ```
 
 
 Read in the form of government data from Chrish Tausanovitch and Christopher Warshaw. Originally downloaded from here: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/AXVEXM
 ```{r}
 fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/cities_finaldata.csv",colClasses = c("place_fips" = "character", "fog2" = "character"))
+
+#change the name of the FIPS column in the T+S data to match
+colnames(fog)[6]<-"FIPS"
 ```
 
 Read in the master FIPS for comparison
 ```{r}
 masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v4.csv",colClasses = c("FIPS" = "character"))
-```
-change the name of the FIPS column in the T+S data to match
-```{r}
-colnames(fog)[6]<-"FIPS"
 ```
 
 
@@ -78,13 +78,6 @@ FOG$FIPSfin <- ifelse(FOG$FIPS == FOG$FIPSm, FOG$FIPS,
 FOG<-FOG[,c(219,1:218)]
 
 FOG<-FOG[!is.na(FOG$LocalGovernment),]
-
-
-comp<-anti_join(FOG,FOGm,by=c("FIPS"))
-comp<-fog[is.na(match(fog$FIPS,FOG$FIPS)),]
-
-comp<-comparedf(FOG, FOGm, by = "FIPS")
-
 
 ```
 
@@ -159,20 +152,39 @@ govfrm$FIPS<-govfrm$FIPS.x
 
 govfrm<-left_join(govfrm,ICMA_2011, by="FIPS", keep=TRUE)
 govfrm$FIPS<-govfrm$FIPS.x
-govfrm<-govfrm[,c(1, 6, 7, 10, 14)]
+govfrm<-govfrm[,c(15, 3, 4, 6, 7, 10, 14)]
 govfrm$FOG_TW<-govfrm$fog2
 govfrm$FOG_ICMA_2018<-govfrm$UFOG
 govfrm$FOG_ICMA_2011<-govfrm$ICMA_UFOG
 
-govfrm<-govfrm[,c("FIPS","city","FOG_TW", "FOG_ICMA_2018","FOG_ICMA_2011")]
+govfrm<-govfrm[,c("FIPS","PWS.Name","city", "PWSID","FOG_TW", "FOG_ICMA_2018","FOG_ICMA_2011")]
 #Merge master list with ICMA 2011 data()
 ```
 
+Create new column
+```{r}
+govfrm$FOG_ICMA_2018<-as.character(govfrm$FOG_ICMA_2018)
+govfrm$FOG_ICMA_2011<-as.character(govfrm$FOG_ICMA_2011)
+govfrm<- govfrm %>% 
+  mutate(merged_FOG = coalesce(FOG_TW,FOG_ICMA_2018,FOG_ICMA_2011))
+
+govfrm$merge_FOG <- ifelse(govfrm$FOG_TW == 0 | 1, govfrm$FOG_TW, )
+govfrm$merge_FOG <- ifelse(is.na(govfrm$merge_FOG) | govfrm$FOG_ICMA_2018 >= 0, govfrm$FOG_ICMA_2018, govfrm$FOG_TW)
+  
+ # ifelse(govfrm$merge_FOG , govfrm$FOG_ICMA_2018,'NA')
+              #ifelse(govfrm$FOG_ICMA_2011 == 1:5, govfrm$FOG_ICMA_2011)))
+               # ifelse(FOG_2011$FIPS == FOG_2011$FIPSt, FOG_2011$FIPS, 'NA')))
+```
 
 
+create new dataframe with only PWSID that have a FOG
+```{r}
+final_fog<-govfrm %>% drop_na(merged_FOG)
+```
 
-
-
+```{r}
+final_fog<-merge(masterFIPS,final_fog, by="FIPS")
+```
 
 
 
