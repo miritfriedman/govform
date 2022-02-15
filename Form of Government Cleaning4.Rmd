@@ -8,6 +8,14 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 
+Only run this if the workspace needs to be cleared.
+```{r}
+##Clear working directory
+rm(list=ls())
+
+```
+
+
 Load in Libraries
 ```{r}
 library(dplyr)
@@ -18,6 +26,11 @@ library(tidyr)
 ```
 
 
+Read in the master FIPS for comparison.
+```{r}
+masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v4.csv",colClasses = c("FIPS" = "character"))
+```
+
 Read in the form of government data from Chrish Tausanovitch and Christopher Warshaw. Originally downloaded from here: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/AXVEXM
 ```{r}
 fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/cities_finaldata.csv",colClasses = c("place_fips" = "character", "fog2" = "character"))
@@ -26,13 +39,7 @@ fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/cities_finaldat
 colnames(fog)[6]<-"FIPS"
 ```
 
-Read in the master FIPS for comparison
-```{r}
-masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v4.csv",colClasses = c("FIPS" = "character"))
-```
-
-
-read ICMA data in
+Read 2018 ICMA data in. This data was given to us from the University of Michigan Library. 
 ```{r}
 
 ICMA<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/ICMA_2018.csv", colClasses = c("FIPS_StateCounty" = "character"))
@@ -52,15 +59,14 @@ ICMA$FIPS_Place<-str_pad(ICMA$FIPS_Place, 5, side=c("left"),pad = "0")
 
 ```
 
-
+Create the combined FIPS codes for the ICMA data, so that it can be matched with the master list. This code created two FIPS codes - one for townships with county codes, and one for municipalities without county codes.
 ```{r}
 ICMA$FIPSm<- paste(ICMA$FIPS_State,ICMA$FIPS_Place, sep="")
 ICMA$FIPSt<- paste(ICMA$FIPS_State,ICMA$FIPS_County,ICMA$FIPS_Place, sep="")
 ICMA<-ICMA[,c(206,207,1:205)]
 ```
 
-Merge the datasets based on matching FIPS codes
-
+Merge the ICMA 2018 dataset with the master FIPS dataset. Create one FOG dataset with the townships and the municipalities.
 ```{r}
 n1<-merge(ICMA,masterFIPS, by.x="FIPSm",by.y="FIPS",all=TRUE)
 n1$FIPS <- n1$FIPSm 
@@ -81,15 +87,7 @@ FOG<-FOG[!is.na(FOG$LocalGovernment),]
 
 ```
 
-Read in 1992 census data
-
-```{r}
-census<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/4_Popularly Elected Officials_1992_1987.csv",colClasses = c("ID"="character","State.Code"="character"))
-```
-
-
-
-read 2011 ICMA data in
+Read 2011 ICMA data in
 ```{r}
 
 ICMA2011<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/ICMA_2011.csv", #colClasses = c("FIPS_StateCounty" = "character"))
@@ -104,7 +102,7 @@ ICMA2011$FIPS_PLACE_ID<-str_pad(ICMA2011$FIPS_PLACE_ID, 5, side=c("left"),pad = 
 
 ```
 
-
+Merge the township and municipality data from the ICMA 2011 dataset.
 ```{r}
 ICMA2011$FIPSm<- paste(ICMA2011$USTATE.,ICMA2011$FIPS_PLACE_ID, sep="")
 ICMA2011$FIPSt<- paste(ICMA2011$USTATE.,ICMA2011$UCNTY,ICMA2011$FIPS_PLACE_ID, sep="")
@@ -126,13 +124,37 @@ FOG_2011<-FOG_2011[!is.na(FOG_2011$UJURIS),]
 ICMA_2011<-FOG_2011[,c("FIPS","UJURIS","ICMA_UFOG")]
 ```
 
+Read in the 1992 census of governments data. This data was pulled from the ICPSR database.
+```{r}
+load("~/Desktop/Squeeze Data/govform/ICPSR_04421/DS0002/04421-0002-Data.rda")
+FOG_92<-da04421.0002
+FOG_92<-subset(FOG_92,select=c(1,2,7))
+
+gov_fips<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govID_to_FIPS.csv")
+
+FOG_92<-merge(FOG_92,gov_fips, by.x="GOVCODE",by.y="ID")
+
+FOG_92<-subset(FOG_92,FIPS %in% masterFIPS$FIPS)
+
+FOG_92$GOVFRM<-ifelse(FOG_92$GOVFRM == "(4) Mayor-Council (elected mayor and elected governing body)", 1,
+  ifelse(FOG_92$GOVFRM == "(5) Council-Manager (elected governing body and appointed manager)",0,
+   ifelse(FOG_92$GOVFRM == "(6) Commission (elected board of commissioners, with each commissioner responsible for one or more departments)",0,
+    ifelse(FOG_92$GOVFRM == "(7) Selectmen or Supervisors (elected body responsible for day-to-day administration)",0,"NA"
+))))
+
+FOG_92$FIPS<-as.character(FOG_92$FIPS)
+FOG_92<-subset(FOG_92, select=c(6,3))
+FOG_92<-rename(FOG_92, FOG_CEN92 = GOVFRM)
+
+```
+
+
 Using the masterFIPS list as the base, add first where there's complete data from the T+W data, then ICMA 2018, then ICMA 2011, then Census 1992
 
 ```{r}
 govfrm<-masterFIPS[1:5]
 fog<-fog[,c("city","FIPS","fog2")]
 ICMA2018<-FOG[,c("FIPSfin","LocalGovernment","UFOG")]
-ICMA2018$FIPSfin
 names(ICMA2018)[1] <- 'FIPS'
 
 
@@ -148,43 +170,80 @@ govfrm<-govfrm[,c(7,1:6)]
 #Merge master list with ICMA 2018 data
 govfrm<-left_join(govfrm,ICMA2018, by="FIPS", keep=TRUE)
 
+
 govfrm$FIPS<-govfrm$FIPS.x
 
+#merge the master list with the 2011 ICMA data
 govfrm<-left_join(govfrm,ICMA_2011, by="FIPS", keep=TRUE)
 govfrm$FIPS<-govfrm$FIPS.x
 govfrm<-govfrm[,c(15, 3, 4, 6, 7, 10, 14)]
+#Rename the columns to represent the dataset they came from 
 govfrm$FOG_TW<-govfrm$fog2
 govfrm$FOG_ICMA_2018<-govfrm$UFOG
-govfrm$FOG_ICMA_2011<-govfrm$ICMA_UFOG
+#recode the ICMA data as 1 for mayor and 0 for non-mayor
+govfrm$FOG_ICMA_2018<-ifelse(govfrm$FOG_ICMA_2018 == 0, 0,
+  ifelse(govfrm$FOG_ICMA_2018 == 1, 1,
+  ifelse(govfrm$FOG_ICMA_2018 >= 2, 0,"NA"
+)))
 
-govfrm<-govfrm[,c("FIPS","PWS.Name","city", "PWSID","FOG_TW", "FOG_ICMA_2018","FOG_ICMA_2011")]
-#Merge master list with ICMA 2011 data()
+govfrm$FOG_ICMA_2011<-govfrm$ICMA_UFOG
+govfrm$FOG_ICMA_2011<-ifelse(govfrm$FOG_ICMA_2011 == 0, 0,
+  ifelse(govfrm$FOG_ICMA_2011 == 1, 1,
+  ifelse(govfrm$FOG_ICMA_2011 >= 2, 0,"NA"
+)))
+
+#Merge master list with 1992 census data
+govfrm<-left_join(govfrm,FOG_92, by="FIPS", keep=TRUE)
+#Only keep specific columns
+govfrm<-govfrm[,c(1,2,3,9,8,10,12)]
+#govfrm<-govfrm[,c("FIPS","PWS.Name","city", "PWSID","FOG_TW", "FOG_ICMA_2018","FOG_ICMA_2011","FOG_CEN92")]
+
+#rename FIPS.x to FIPS 
+names(govfrm)[1]<-"FIPS"
+
 ```
 
-Create new column
+Create new column for FOG based on ICMA 2018, Tausanovich and Warshaw data, ICMA 2011, and 1992 Census of Governments data. Pull first from ICMA 2018 data, then T+W, then 2011, then 1992 census of governments. Re-code the ICMA data to match a coding of '1' for Mayor and '0' for non-mayor. 
 ```{r}
 govfrm$FOG_ICMA_2018<-as.character(govfrm$FOG_ICMA_2018)
 govfrm$FOG_ICMA_2011<-as.character(govfrm$FOG_ICMA_2011)
+
+#This is the code line that pulls first from the 2018, then TW, then 2011, then 1992 census.
 govfrm<- govfrm %>% 
-  mutate(merged_FOG = coalesce(FOG_TW,FOG_ICMA_2018,FOG_ICMA_2011))
-
-govfrm$merge_FOG <- ifelse(govfrm$FOG_TW == 0 | 1, govfrm$FOG_TW, )
-govfrm$merge_FOG <- ifelse(is.na(govfrm$merge_FOG) | govfrm$FOG_ICMA_2018 >= 0, govfrm$FOG_ICMA_2018, govfrm$FOG_TW)
-  
- # ifelse(govfrm$merge_FOG , govfrm$FOG_ICMA_2018,'NA')
-              #ifelse(govfrm$FOG_ICMA_2011 == 1:5, govfrm$FOG_ICMA_2011)))
-               # ifelse(FOG_2011$FIPS == FOG_2011$FIPSt, FOG_2011$FIPS, 'NA')))
+  mutate(merged_FOG = coalesce(FOG_ICMA_2018,FOG_TW,FOG_ICMA_2011,FOG_CEN92))
 ```
-
 
 create new dataframe with only PWSID that have a FOG
 ```{r}
 final_fog<-govfrm %>% drop_na(merged_FOG)
 ```
 
+Delete out any duplicates that have been created in this process. 
 ```{r}
-final_fog<-merge(masterFIPS,final_fog, by="FIPS")
+final_fog<-unique(final_fog)
+#use just the columns that are of interest - the final fog output. 
+fog_thin<-final_fog[,c(1,2,3,8)]
 ```
 
+Output the cleaned file with today's date for record keeping.
+```{r}
+date<-Sys.Date()
+csvfilename<-paste("FOG_Output_",date,".csv",sep="")
+write.csv(fog_thin,file=csvfilename)
+```
 
+Finding Discrepencies between T+W data and ICMA 2018
+```{r}
+matched<-govfrm
+matched$mismatch_tw<-ifelse(matched$FOG_ICMA_2018 == matched$FOG_TW, "match",
+  ifelse(matched$FOG_ICMA_2018 == "NA", "BA",
+  ifelse(matched$FOG_ICMA_2018 != matched$FOG_TW, "mismatch","NA"
+)))
+```
+
+```{r}
+
+matched$Just92<-ifelse(is.na(matched$FOG_ICMA_2018) & is.na(matched$FOG_ICMA_2011) & is.na(matched$FOG_TW), "check","don't check")
+```
+```
 
