@@ -28,7 +28,7 @@ library(tidyr)
 
 Read in the master FIPS for comparison.
 ```{r}
-masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v4.csv",colClasses = c("FIPS" = "character"))
+masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Confirmed_v7.csv",colClasses = c("FIPS" = "character"))
 ```
 
 Read in the form of government data from Chrish Tausanovitch and Christopher Warshaw. Originally downloaded from here: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/AXVEXM
@@ -70,10 +70,10 @@ Merge the ICMA 2018 dataset with the master FIPS dataset. Create one FOG dataset
 ```{r}
 n1<-merge(ICMA,masterFIPS, by.x="FIPSm",by.y="FIPS",all=TRUE)
 n1$FIPS <- n1$FIPSm 
-n1<-n1[,c(218,1:217)]
+n1<-n1[,c(217,1:216)]
 n2<-merge(ICMA,masterFIPS,by.x="FIPSt",by.y="FIPS",all=TRUE)
 n2$FIPS <- n2$FIPSt 
-n2<-n2[,c(218,1:217)]
+n2<-n2[,c(217,1:216)]
 
 FOG<-rbind(n1,n2)
 
@@ -81,7 +81,7 @@ FOG<-FOG[!is.na(FOG$PWSID),]
 
 FOG$FIPSfin <- ifelse(FOG$FIPS == FOG$FIPSm, FOG$FIPS,
                 ifelse(FOG$FIPS == FOG$FIPSt, FOG$FIPS, 'NA'))
-FOG<-FOG[,c(219,1:218)]
+FOG<-FOG[,c(218,1:217)]
 
 FOG<-FOG[!is.na(FOG$LocalGovernment),]
 
@@ -132,7 +132,7 @@ FOG_92<-subset(FOG_92,select=c(1,2,7))
 
 gov_fips<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govID_to_FIPS.csv")
 
-FOG_92<-merge(FOG_92,gov_fips, by.x="GOVCODE",by.y="ID")
+FOG_92<-merge(FOG_92,gov_fips, by.x="GOVCODE",by.y="GOVSid")
 
 FOG_92<-subset(FOG_92,FIPS %in% masterFIPS$FIPS)
 
@@ -225,6 +225,13 @@ final_fog<-unique(final_fog)
 fog_thin<-final_fog[,c(1,2,3,8)]
 ```
 
+Change the FOG for Brookfield IL
+```{r}
+fog_thin<- fog_thin %>%
+  mutate_at("merged_FOG", ~replace(., PWSID == 'IL0310330', 0))
+```
+
+
 Output the cleaned file with today's date for record keeping.
 ```{r}
 date<-Sys.Date()
@@ -244,6 +251,14 @@ matched$mismatch_tw<-ifelse(matched$FOG_ICMA_2018 == matched$FOG_TW, "match",
 ```{r}
 
 matched$Just92<-ifelse(is.na(matched$FOG_ICMA_2018) & is.na(matched$FOG_ICMA_2011) & is.na(matched$FOG_TW), "check","don't check")
+
+write.csv(matched, "checklist_FOG.csv")
 ```
+
+Descriptives
+```{r}
+fog_thin$merged_FOG<-as.numeric(fog_thin$merged_FOG)
+summary(fog_thin$merged_FOG)
 ```
+
 
