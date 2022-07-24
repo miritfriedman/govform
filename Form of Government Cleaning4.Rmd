@@ -85,7 +85,7 @@ FOG<-FOG[!is.na(FOG$LocalGovernment),]
 
 ```
 
-Read 2011 ICMA data in
+Read 2011 ICMA data in.
 ```{r}
 
 ICMA2011<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/ICMA_2011.csv")
@@ -121,7 +121,7 @@ FOG_2011<-FOG_2011[!is.na(FOG_2011$UJURIS),]
 ICMA_2011<-FOG_2011[,c("FIPS","UJURIS","ICMA_UFOG")]
 ```
 
-Read in the 1992 census of governments data. This data was pulled from the ICPSR database.
+Read in the 1992 census of governments data. This data was pulled from the ICPSR database (https://www.icpsr.umich.edu/web/ICPSR/studies/4421).
 ```{r}
 load("~/Desktop/Squeeze Data/govform/ICPSR_04421/DS0002/04421-0002-Data.rda")
 FOG_92<-da04421.0002
@@ -145,9 +145,7 @@ FOG_92<-rename(FOG_92, FOG_CEN92 = GOVFRM)
 
 ```
 
-
-Using the masterFIPS list as the base, add first where there's complete data from the T+W data, then ICMA 2018, then ICMA 2011, then Census 1992
-
+Using the masterFIPS list as the base, add first where there's complete data from the T+W data, then ICMA 2018, then ICMA 2011, then Census 1992. 
 ```{r}
 govfrm<-masterFIPS[3:7]
 fog<-fog[,c("city","FIPS","fog2")]
@@ -210,7 +208,7 @@ govfrm<- govfrm %>%
   mutate(merged_FOG = coalesce(FOG_ICMA_2018,FOG_TW,FOG_ICMA_2011,FOG_CEN92))
 ```
 
-create new dataframe with only PWSID that have a FOG
+Create new dataframe with only PWSID that have a FOG value.
 ```{r}
 final_fog<-govfrm %>% drop_na(merged_FOG)
 ```
@@ -222,10 +220,22 @@ final_fog<-unique(final_fog)
 fog_thin<-final_fog[,c(1,2,3,8)]
 ```
 
-Change the FOG for Brookfield IL
+Change the FOG for Brookfield IL based on handchecking effort. If other municipalities need to have an individual value changed for the form of government data, use this code to switch from 0 > 1 or 1 > 0.
 ```{r}
 fog_thin<- fog_thin %>%
   mutate_at("merged_FOG", ~replace(., PWSID == 'IL0310330', 0))
+```
+
+Add the handchecked FOG data.
+```{r}
+hand_fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/FOG_NA - FOG_NA.csv")
+hand_fog<-subset(hand_fog, select=c(2,3,4,10))
+hand_fog<-rename(hand_fog, "merged_FOG"="merged_FOG..1.yes..0.no.")
+```
+
+Bind the thin file with the handchecked files
+```{r}
+fog_thin<-rbind(fog_thin, hand_fog)
 ```
 
 
@@ -245,17 +255,24 @@ matched$mismatch_tw<-ifelse(matched$FOG_ICMA_2018 == matched$FOG_TW, "match",
 )))
 ```
 
+This code creates a list of form of government data that needs to be hand checked.
 ```{r}
-
 matched$Just92<-ifelse(is.na(matched$FOG_ICMA_2018) & is.na(matched$FOG_ICMA_2011) & is.na(matched$FOG_TW), "check","don't check")
 
 write.csv(matched, "checklist_FOG.csv")
 ```
 
-Descriptives
+Create descriptive statistics.
 ```{r}
 fog_thin$merged_FOG<-as.numeric(fog_thin$merged_FOG)
 summary(fog_thin$merged_FOG)
 ```
+save list of NAs as its own dataframe
+```{r}
+mafog<-merge(masterFIPS,fog_thin, all.x=TRUE)
+mafog$merged_FOG<-na_if(mafog$merged_FOG,"NA")
+na_DF <- mafog[is.na(mafog$merged_FOG),]
 
+write.csv(na_DF, "FOG_NA.csv")
+```
 
