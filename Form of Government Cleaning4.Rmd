@@ -29,6 +29,14 @@ masterFIPS <- read.csv("/Users/miritfriedman/Desktop/Squeeze Data/FinalList_FIPS
 masterFIPS<-rename(masterFIPS, "FIPS"="FIPS_2020")
 ```
 
+Add the handchecked FOG data.
+```{r}
+hand_fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/FOG_NA - FOG_NA.csv")
+hand_fog<-subset(hand_fog, select=c(2,10))
+hand_fog<-rename(hand_fog, "hand_checked"="merged_FOG..1.yes..0.no.")
+```
+
+
 Read in the form of government data from Chrish Tausanovitch and Christopher Warshaw. Originally downloaded from here: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/AXVEXM
 ```{r}
 fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/cities_finaldata.csv",colClasses = c("place_fips" = "character", "fog2" = "character"))
@@ -196,16 +204,24 @@ govfrm<-govfrm[,c(1,2,5,13,11,9,10)]
 #rename FIPS.x to FIPS 
 names(govfrm)[1]<-"FIPS"
 
+hand_fog$FIPS<-as.character(hand_fog$FIPS)
+govfrm<-left_join(govfrm, hand_fog, by="FIPS", keep=TRUE)
+#rename FIPS.x to FIPS 
+names(govfrm)[1]<-"FIPS"
+govfrm<-govfrm[,c(1,2,3,9,4,5,6,7)]
 ```
 
 Create new column for FOG based on ICMA 2018, Tausanovich and Warshaw data, ICMA 2011, and 1992 Census of Governments data. Pull first from ICMA 2018 data, then T+W, then 2011, then 1992 census of governments. Re-code the ICMA data to match a coding of '1' for Mayor and '0' for non-mayor. 
 ```{r}
 govfrm$FOG_ICMA_2018<-as.character(govfrm$FOG_ICMA_2018)
 govfrm$FOG_ICMA_2011<-as.character(govfrm$FOG_ICMA_2011)
+govfrm$hand_checked<-as.character(govfrm$hand_checked)
+
+govfrm$FOG_CEN92<-na_if(govfrm$FOG_CEN92, "NA")
 
 #This is the code line that pulls first from the 2018, then TW, then 2011, then 1992 census.
 govfrm<- govfrm %>% 
-  mutate(merged_FOG = coalesce(FOG_ICMA_2018,FOG_TW,FOG_ICMA_2011,FOG_CEN92))
+  mutate(merged_FOG = coalesce(FOG_ICMA_2018,FOG_TW,FOG_ICMA_2011,FOG_CEN92,hand_checked))
 ```
 
 Create new dataframe with only PWSID that have a FOG value.
@@ -217,25 +233,13 @@ Delete out any duplicates that have been created in this process.
 ```{r}
 final_fog<-unique(final_fog)
 #use just the columns that are of interest - the final fog output. 
-fog_thin<-final_fog[,c(1,2,3,8)]
+fog_thin<-final_fog[,c(1,2,3,9)]
 ```
 
 Change the FOG for Brookfield IL based on handchecking effort. If other municipalities need to have an individual value changed for the form of government data, use this code to switch from 0 > 1 or 1 > 0.
 ```{r}
 fog_thin<- fog_thin %>%
   mutate_at("merged_FOG", ~replace(., PWSID == 'IL0310330', 0))
-```
-
-Add the handchecked FOG data.
-```{r}
-hand_fog<-read.csv("/Users/miritfriedman/Desktop/Squeeze Data/govform/FOG_NA - FOG_NA.csv")
-hand_fog<-subset(hand_fog, select=c(2,3,4,10))
-hand_fog<-rename(hand_fog, "merged_FOG"="merged_FOG..1.yes..0.no.")
-```
-
-Bind the thin file with the handchecked files
-```{r}
-fog_thin<-rbind(fog_thin, hand_fog)
 ```
 
 
